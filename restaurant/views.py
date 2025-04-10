@@ -1,20 +1,55 @@
-from rest_framework import viewsets, generics
-from django.http import HttpResponse
-from .models import Menu, Booking
-from .serializers import menuSerializer, bookingSerializer
-from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import render
+from .models import MenuItem, Booking
+from .serializers import MenuItemSerializer, BookingSerializer
 
-# Create your views here. 
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+
+
+# static page
 def index(request):
-    return HttpResponse("Welcome to the LittleLemon restaurant API!")
-class MenuItemsView(generics.ListCreateAPIView):
-    queryset = Menu.objects.all()  # Retrieve all menu items
-    serializer_class = menuSerializer  # Use MenuItemSerializer for formatting the data
+    return render(request, 'index.html', {})
 
-class SingleMenuItemView(generics.RetrieveUpdateAPIView, generics.DestroyAPIView):
-    queryset = Menu.objects.all()  # Retrieve the specific menu item
-    serializer_class = menuSerializer  # Use the same serializer for single item
-class BookingViewSet(viewsets.ModelViewSet):
-    queryset = Booking.objects.all()  # Get all booking objects
-    serializer_class = bookingSerializer  # Use the serializer to format the data
-    permission_classes = [IsAuthenticated]
+# api
+class MenuItemsView(generics.ListCreateAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+
+    def get_permissions(self):
+        permission_class = [IsAuthenticated]
+        if self.request.method != 'GET':
+            permission_class.append(IsAdminUser)
+        return [permission() for permission in permission_class]
+
+class SingleMenuItemView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+
+    def get_permissions(self):
+        permission_class = [IsAuthenticated]
+        if self.request.method != 'GET':
+            permission_class = [IsAdminUser]
+        return [permission() for permission in permission_class]
+    
+class BookingView(generics.ListCreateAPIView):
+    queryset = Booking.objects.all()
+    serializer_class = BookingSerializer
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            # admin could get all the bookings
+            return Booking.objects.all()
+        else:
+            # customer can only get all the bookings that booking name is the customer's username
+            return Booking.objects.filter(name=self.request.user.username)
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+    
+class SingleBookingView(generics.RetrieveDestroyAPIView):
+    queryset = Booking.objects.all()
+    serializer_class = BookingSerializer
+    # only admin could check/delete single bookings
+    
+    def get_permissions(self):
+        return [IsAdminUser()]
